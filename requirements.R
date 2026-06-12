@@ -1,0 +1,5 @@
+install.packages("ggplot2")
+install.packages("caret")
+install.packages("rpart")
+install.packages("rpart.plot")
+install.packages("class")

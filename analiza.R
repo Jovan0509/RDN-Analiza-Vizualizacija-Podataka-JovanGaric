@@ -125,3 +125,132 @@ ggplot(test_data, aes(x = predicted, y = Ladder.score)) +
   theme_minimal()
 
 ggsave("plots/regresija_predikcija.png", width = 8, height = 6)
+
+# 5. STABLA ODLUCIVANJA
+
+library(rpart)
+library(rpart.plot)
+
+# pravimo binarnu varijablu, ili srecna ili nesrecna
+# granica je medijana skora srece
+
+medijana <- median(happiness$Ladder.score)
+
+happiness$srecna <- ifelse(happiness$Ladder.score >= medijana, "srecna", "nesrecna")
+happiness$srecna <- as.factor(happiness$srecna)
+
+cat("Medijana Skora Srece:", medijana, "\n")
+cat("Srbija je:", as.character(happiness[happiness$Country.name == "Serbia", "srecna"]), "\n")
+
+# tr/ts split
+
+set.seed(42) 
+train_index2 <- createDataPartition(happiness$srecna, p = 0.8, list = FALSE)
+
+train_data2 <- happiness[train_index2, ]
+test_data2 <- happiness[-train_index2, ]
+
+# stablo odlucivanja
+
+stablo <- rpart(srecna ~ Log.GDP.per.capita + Social.support +
+                   Healthy.life.expectancy + Freedom.to.make.life.choices +
+                   Generosity + Perceptions.of.corruption,
+                 data = train_data2, method = "class",
+                 control = rpart.control(maxdepth = 4, minsplit = 10, cp = 0.02))
+
+# vizualizacija stabla
+rpart.plot(stablo, type = 4, extra = 101, 
+           main = "Stablo odlucivanja - srecne vs nesrecne zemlje")
+
+
+png("plots/stablo_odlucivanja.png", width = 1200, height = 800)
+rpart.plot(stablo, type = 4, extra = 101,
+           main = "Stablo odlucivanja - srecne vs nesrecne zemlje")
+dev.off()
+
+# test na test skupu
+
+predikcije2 <- predict(stablo, test_data2, type = "class")
+konfuziona_matrica <- table(Stvarno = test_data2$srecna, Predvidjeno = predikcije2)
+print(konfuziona_matrica)
+
+# tacnost modela
+tacnost <- sum(diag(konfuziona_matrica)) / sum(konfuziona_matrica)
+
+cat("Tacnost stabla odlucivanja:", round(tacnost * 100, 1), "%\n")
+
+
+# 6. KNN KLASIFIKACIJA
+
+library(class)
+
+# uzimamo samo numericke kolone za KNN
+
+knn_kolone <- c("Log.GDP.per.capita", "Social.support", 
+                "Healthy.life.expectancy", "Freedom.to.make.life.choices",
+                "Generosity", "Perceptions.of.corruption")
+
+# normalizacija podataka obvzn jer KNN je osetljiv na razlicite skale
+
+normalize <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+
+happiness_norm <- as.data.frame(lapply(happiness[, knn_kolone], normalize))
+
+happiness_norm$srecna <- happiness$srecna
+happiness_norm$Country.name <- happiness$Country.name
+
+# tr/ts split
+set.seed(42)
+train_index3 <- createDataPartition(happiness_norm$srecna, p = 0.8, list = FALSE)
+train_knn <- happiness_norm[train_index3, knn_kolone]
+test_knn <- happiness_norm[-train_index3, knn_kolone]
+train_labels <- happiness_norm[train_index3, "srecna"]
+test_labels <- happiness_norm[-train_index3, "srecna"]
+
+# k = koren broja opservacija, standardno pravilo
+
+k <- round(sqrt(nrow(train_knn)))
+cat("Koristimo k =", k, "\n")
+
+# KNN model
+knn_predikcije <- knn(train_knn, test_knn, train_labels, k = k)
+
+# tacnost
+
+knn_matrica <- table(Stvarno = test_labels, Predvidjeno = knn_predikcije)
+print(knn_matrica)
+
+knn_tacnost <- sum(diag(knn_matrica)) / sum(knn_matrica)
+cat("Tacnost KNN modela:", round(knn_tacnost * 100, 1), "%\n")
+
+# gde spada Srbija po KNN?
+
+srbija_norm <- happiness_norm[happiness_norm$Country.name == "Serbia", knn_kolone]
+srbija_knn <- knn(train_knn, srbija_norm, train_labels, k = k)
+cat("KNN klasifikacija Srbije:", as.character(srbija_knn), "\n")
+
+# vizualizacija KNN - klasifikacija po regionima
+happiness_norm$region <- happiness$Regional.indicator
+happiness_norm$ladder <- happiness$Ladder.score
+happiness_norm$gdp <- happiness$Log.GDP.per.capita
+
+# dodajemo KNN predikciju za sve zemlje
+knn_sve <- knn(train_knn, happiness_norm[, knn_kolone], train_labels, k = k)
+happiness_norm$knn_klasa <- knn_sve
+
+ggplot(happiness_norm, aes(x = gdp, y = ladder, color = region)) +
+  geom_point(size = 2) +
+  geom_point(data = happiness_norm[happiness_norm$Country.name == "Serbia", ],
+             color = "red", size = 5) +
+  geom_text(data = happiness_norm[happiness_norm$Country.name == "Serbia", ],
+            aes(label = Country.name), vjust = -1, color = "red", size = 3) +
+  labs(title = "KNN klasifikacija zemalja po regionima",
+       x = "Log BDP po glavi stanovnika",
+       y = "Skor srece",
+       color = "Region") +
+  theme_minimal()
+
+ggsave("plots/knn_regioni.png", width = 10, height = 6)
+
