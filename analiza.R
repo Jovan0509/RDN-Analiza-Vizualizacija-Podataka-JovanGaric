@@ -254,3 +254,87 @@ ggplot(happiness_norm, aes(x = gdp, y = ladder, color = region)) +
 
 ggsave("plots/knn_regioni.png", width = 10, height = 6)
 
+
+
+# 7. K-MEANS KLASTEROVANJE
+
+
+# uzimamo iste normalizovane kolone
+set.seed(42)
+kmeans_model <- kmeans(happiness_norm[, knn_kolone], centers = 4, nstart = 25)
+
+happiness_norm$klaster <- as.factor(kmeans_model$cluster)
+happiness$klaster <- as.factor(kmeans_model$cluster)
+
+# koji klaster je Srbija?
+
+srbija_klaster <- happiness_norm[happiness_norm$Country.name == "Serbia", "klaster"]
+cat("Srbija pripada klasteru:", as.character(srbija_klaster), "\n")
+
+# koje zemlje su u istom klasteru kao Srbija?
+
+isti_klaster <- happiness[happiness$klaster == srbija_klaster, "Country.name"]
+cat("Zemlje u istom klasteru kao Srbija:\n")
+print(isti_klaster)
+
+# vizualizacija klastera
+
+ggplot(happiness_norm, aes(x = gdp, y = ladder, color = klaster)) +
+  geom_point(size = 2) +
+  geom_point(data = happiness_norm[happiness_norm$Country.name == "Serbia", ],
+             color = "red", size = 5) +
+  geom_text(data = happiness_norm[happiness_norm$Country.name == "Serbia", ],
+            aes(label = Country.name), vjust = -1, color = "red", size = 3) +
+  labs(title = "K-means klasterovanje zemalja (k=4)",
+       x = "Log BDP po glavi stanovnika",
+       y = "Skor srece",
+       color = "Klaster") +
+  theme_minimal()
+
+ggsave("plots/kmeans_klasteri.png", width = 10, height = 6)
+
+
+
+# 8. ANSAMBL - kombinujemo linearna regresija + stablo + KNN
+
+
+
+# linearna regresija predikcija za sve zemlje
+
+reg_predikcije <- predict(model2, happiness)
+reg_klasa <- ifelse(reg_predikcije >= medijana, "srecna", "nesrecna")
+
+# stablo predikcija za sve zemlje
+
+stablo_klasa <- as.character(predict(stablo, happiness, type = "class"))
+
+# KNN predikcija za sve zemlje
+
+knn_klasa_sve <- as.character(knn(train_knn, happiness_norm[, knn_kolone], train_labels, k = k))
+
+# glasanje - ako 2 od 3 modela kazu "srecna", rezultat je "srecna"
+
+ansambl <- data.frame(
+  Country = happiness$Country.name,
+  Regresija = reg_klasa,
+  Stablo = stablo_klasa,
+  KNN = knn_klasa_sve
+)
+
+ansambl$glasovi_srecna <- rowSums(ansambl[, c("Regresija", "Stablo", "KNN")] == "srecna")
+ansambl$rezultat <- ifelse(ansambl$glasovi_srecna >= 2, "srecna", "nesrecna")
+
+# tacnost ansambla
+ansambl$stvarno <- as.character(happiness$srecna)
+tacnost_ansambl <- mean(ansambl$rezultat == ansambl$stvarno)
+
+cat("Tacnost ansambla:", round(tacnost_ansambl * 100, 1), "%\n")
+
+# gde je Srbija?
+
+cat("Ansambl klasifikacija Srbije:", 
+    ansambl[ansambl$Country == "Serbia", "rezultat"], "\n")
+
+# koliko modela se slaze za Srbiju?
+
+print(ansambl[ansambl$Country == "Serbia", ])

@@ -4,6 +4,10 @@ Analiza faktora koji uticu na srecu stanovnistva u 140 zemalja sveta, zasnovana 
 Cilj zadatka je utvrditi koji politicki i ekonomski faktori najvise doprinose sreci jedne zemlje, 
 sa prikazom i na poziciju Srbije.
 
+## Pokretanje projekta
+1. Pokrenuti requirements.R da se skinu paketi potrebni za rad
+2. Pokrenuti analiza.R
+
 Dataset:
 
 Izvor: Kaggle - World Happiness Report 2024
@@ -27,7 +31,7 @@ Zakljucak: Sloboda izbora i socijalna podrska predvidjaju srecu bolje od samog B
 
 ### Stabla odlucivanja
 
-Zemlja se klasifikuje kao "srecna" ili "nesrecna" u odnosu na medijanu skora srece (5.80).
+# Zemlja se klasifikuje kao srecna ili nesrecna u odnosu na medijanu skora srece (5.80).
 Model postavljamo sa parametrima maxdepth=4, minsplit=10, cp=0.02 da izbegnemo overfitting.
 
 Stablo donosi odluku na osnovu 3 pitanja:
@@ -49,3 +53,29 @@ Pre KNN-a normalizujemo podatke jer je algoritam osetljiv na razlicite skale.
 
 Srbija je klasifikovana kao srecna, okruzena zemljama slicnog profila:
 Ceska, Bosna i Herzegovina, Severna Makedonija.
+
+### K-means klasterovanje
+
+Algoritam sam pronalazi 4 prirodna klastera bez unapred zadatih etiketa.
+Klasteri odgovaraju geopolitickim i ekonomskim blokovima:
+- Klaster 2: siromasne i nesrecne zemlje (uglavnom Afrika)
+- Klaster 1: srednje razvijene zemlje (Central/Eastern Europe)
+- Klaster 3: srednje razvijene sa visokom srecom - tu je Srbija
+- Klaster 4: najbogatije i najsrecnije (Zapadna Evropa)
+
+Srbija pripada klasteru 3 zajedno sa Ceskom, Islandom, Kosovom, BiH i
+Severnom Makedonijom, ali i neocekivano SAD i Kuvajtom - sto znaci da
+te zemlje imaju slican profil faktora srece bez obzira na geografiju.
+
+### Ansambl model
+
+Kombinujemo sva 3 modela glasanjem - ako 2 od 3 kazu "srecna", rezultat
+je "srecna". 
+
+Tacnosti:
+- Stablo odlucivanja: 78.6%
+- KNN: 82.1%
+- Ansambl: 92.1%
+
+Sva 3 modela jednoglasno klasifikuju Srbiju kao srecnu zemlju.
+Ansambl je najtacniji jer kompenzuje greske individualnih modela.
